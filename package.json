@@ -1,0 +1,9 @@
+{
+  "name": "linkora-esim-api",
+  "version": "1.0.0",
+  "description": "Linkora eSIM API for Mini App",
+  "private": true,
+  "engines": {
+    "node": "20.x"
+  }
+}

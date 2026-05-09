@@ -1,0 +1,482 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Linkora eSIM</title>
+<script src="https://telegram.org/js/telegram-web-app.js"></script>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+body { background: #0a0a0a; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; color: #fff; overscroll-behavior: none; }
+.app { max-width: 480px; margin: 0 auto; min-height: 100vh; background: #0a0a0a; padding-bottom: 80px; }
+
+/* Header */
+.header { padding: 16px 20px 12px; display: flex; align-items: center; justify-content: space-between; border-bottom: 0.5px solid #1a2a1a; position: sticky; top: 0; background: #0a0a0a; z-index: 10; }
+.logo { font-size: 17px; font-weight: 600; color: #4ade80; letter-spacing: -0.3px; }
+.logo span { color: #fff; font-weight: 400; }
+.header-right { display: flex; gap: 8px; }
+.icon-btn { background: #111; border: 0.5px solid #1a2a1a; border-radius: 10px; color: #4ade80; cursor: pointer; font-size: 18px; padding: 7px 9px; line-height: 1; }
+
+/* Hero */
+.hero { padding: 20px 20px 16px; background: #0d1a0d; border-bottom: 0.5px solid #1a2a1a; }
+.hero-title { font-size: 22px; font-weight: 600; line-height: 1.3; margin-bottom: 6px; }
+.hero-title .accent { color: #4ade80; }
+.hero-sub { font-size: 13px; color: #6b7280; margin-bottom: 14px; }
+.hero-stats { display: flex; gap: 16px; }
+.stat { text-align: center; }
+.stat-num { font-size: 18px; font-weight: 600; color: #4ade80; }
+.stat-label { font-size: 11px; color: #4b5563; margin-top: 1px; }
+
+/* Search */
+.search-wrap { padding: 14px 20px 0; }
+.search-bar { position: relative; }
+.search-bar input { width: 100%; background: #111; border: 0.5px solid #1f3d1f; border-radius: 12px; padding: 11px 16px 11px 42px; color: #fff; font-size: 14px; outline: none; }
+.search-bar input::placeholder { color: #4b5563; }
+.search-icon { position: absolute; left: 14px; top: 50%; transform: translateY(-50%); color: #4ade80; font-size: 16px; pointer-events: none; }
+
+/* Tabs */
+.tabs { display: flex; gap: 8px; padding: 14px 20px 0; overflow-x: auto; scrollbar-width: none; }
+.tabs::-webkit-scrollbar { display: none; }
+.tab { flex-shrink: 0; padding: 7px 16px; border-radius: 20px; font-size: 13px; border: 0.5px solid #1f3d1f; background: #111; color: #9ca3af; cursor: pointer; transition: all 0.15s; white-space: nowrap; }
+.tab.active { background: #0d2d0d; border-color: #4ade80; color: #4ade80; font-weight: 500; }
+
+/* Section */
+.section-header { padding: 16px 20px 8px; display: flex; align-items: center; justify-content: space-between; }
+.section-title { font-size: 12px; color: #4b5563; font-weight: 500; text-transform: uppercase; letter-spacing: 0.8px; }
+.section-count { font-size: 12px; color: #4ade80; }
+
+/* Package cards */
+.packages { padding: 0 20px; display: flex; flex-direction: column; gap: 10px; }
+.pkg-card { background: #111; border: 0.5px solid #1a2a1a; border-radius: 14px; padding: 14px 16px; cursor: pointer; transition: border-color 0.15s, background 0.15s; display: flex; align-items: center; justify-content: space-between; }
+.pkg-card:active { background: #0d1a0d; }
+.pkg-card.featured { border-color: #1f4d1f; background: #0d1a0d; }
+.pkg-left { display: flex; align-items: center; gap: 12px; }
+.pkg-flag { font-size: 30px; line-height: 1; width: 36px; text-align: center; }
+.pkg-name { font-size: 14px; font-weight: 500; color: #fff; margin-bottom: 3px; }
+.pkg-meta { font-size: 12px; color: #6b7280; }
+.pkg-dot { margin: 0 5px; color: #374151; }
+.pkg-right { text-align: right; flex-shrink: 0; }
+.pkg-price { font-size: 18px; font-weight: 600; color: #4ade80; }
+.pkg-per-day { font-size: 11px; color: #4b5563; margin-top: 2px; }
+.featured-badge { display: inline-block; font-size: 10px; background: #0d2d0d; border: 0.5px solid #1f4d1f; color: #4ade80; padding: 2px 8px; border-radius: 10px; margin-bottom: 4px; }
+
+/* Empty state */
+.empty { text-align: center; padding: 40px 20px; color: #4b5563; }
+.empty-icon { font-size: 40px; margin-bottom: 12px; }
+
+/* Bottom nav */
+.bottom-nav { position: fixed; bottom: 0; left: 50%; transform: translateX(-50%); width: 100%; max-width: 480px; background: #0a0a0a; border-top: 0.5px solid #1a2a1a; display: flex; padding: 10px 0 env(safe-area-inset-bottom, 16px); z-index: 10; }
+.nav-item { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 3px; background: none; border: none; cursor: pointer; color: #4b5563; font-size: 10px; padding: 4px 0; transition: color 0.15s; }
+.nav-item.active { color: #4ade80; }
+.nav-item svg { width: 22px; height: 22px; stroke: currentColor; fill: none; stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; }
+
+/* Modal */
+.modal-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.75); z-index: 100; align-items: flex-end; justify-content: center; }
+.modal-overlay.open { display: flex; }
+.modal { background: #111; border-radius: 20px 20px 0 0; border: 0.5px solid #1a2a1a; border-bottom: none; width: 100%; max-width: 480px; max-height: 90vh; overflow-y: auto; padding-bottom: env(safe-area-inset-bottom, 20px); }
+.modal-handle { width: 36px; height: 4px; background: #2a2a2a; border-radius: 2px; margin: 12px auto 0; }
+.modal-close { display: flex; justify-content: flex-end; padding: 8px 16px 0; }
+.modal-close button { background: #1a1a1a; border: 0.5px solid #1a2a1a; border-radius: 8px; color: #6b7280; cursor: pointer; padding: 6px 10px; font-size: 14px; }
+.modal-hero { padding: 8px 20px 20px; text-align: center; border-bottom: 0.5px solid #1a2a1a; }
+.modal-flag { font-size: 52px; margin-bottom: 10px; }
+.modal-name { font-size: 20px; font-weight: 600; margin-bottom: 4px; }
+.modal-region { font-size: 13px; color: #6b7280; }
+.modal-body { padding: 16px 20px; }
+.detail-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 16px; }
+.detail-card { background: #0d1a0d; border: 0.5px solid #1f3d1f; border-radius: 12px; padding: 12px 14px; }
+.detail-card-label { font-size: 11px; color: #4b5563; margin-bottom: 4px; text-transform: uppercase; letter-spacing: 0.5px; }
+.detail-card-val { font-size: 16px; font-weight: 600; color: #4ade80; }
+.detail-rows { margin-bottom: 20px; }
+.detail-row { display: flex; justify-content: space-between; align-items: center; padding: 11px 0; border-bottom: 0.5px solid #1a2a1a; font-size: 13px; }
+.detail-row:last-child { border-bottom: none; }
+.detail-row-label { color: #6b7280; }
+.detail-row-val { font-weight: 500; color: #fff; }
+.buy-section { }
+.price-row { display: flex; align-items: baseline; gap: 8px; margin-bottom: 14px; }
+.price-big { font-size: 28px; font-weight: 700; color: #4ade80; }
+.price-sub { font-size: 13px; color: #4b5563; }
+.buy-btn { width: 100%; background: #4ade80; color: #0a0a0a; border: none; border-radius: 14px; padding: 15px; font-size: 16px; font-weight: 600; cursor: pointer; margin-bottom: 12px; transition: opacity 0.15s; }
+.buy-btn:active { opacity: 0.85; }
+.pay-row { display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; }
+.pay-chip { font-size: 11px; padding: 4px 12px; border: 0.5px solid #1f3d1f; border-radius: 20px; color: #4ade80; background: #0d1a0d; }
+
+/* Orders page */
+.page { display: none; padding: 16px 20px; }
+.page.active { display: block; }
+.order-card { background: #111; border: 0.5px solid #1a2a1a; border-radius: 14px; padding: 14px 16px; margin-bottom: 10px; }
+.order-top { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
+.order-name { font-size: 14px; font-weight: 500; }
+.order-status { font-size: 11px; padding: 3px 10px; border-radius: 10px; }
+.order-status.delivered { background: #0d2d0d; color: #4ade80; border: 0.5px solid #1f4d1f; }
+.order-status.pending { background: #2d2000; color: #fbbf24; border: 0.5px solid #4d3a00; }
+.order-meta { font-size: 12px; color: #6b7280; }
+
+.support-card { background: #0d1a0d; border: 0.5px solid #1f3d1f; border-radius: 14px; padding: 20px; text-align: center; margin-bottom: 12px; }
+.support-icon { font-size: 36px; margin-bottom: 10px; }
+.support-title { font-size: 16px; font-weight: 500; margin-bottom: 6px; }
+.support-sub { font-size: 13px; color: #6b7280; line-height: 1.5; }
+.support-btn { display: block; width: 100%; margin-top: 14px; background: #4ade80; color: #0a0a0a; border: none; border-radius: 12px; padding: 12px; font-size: 14px; font-weight: 600; cursor: pointer; }
+</style>
+</head>
+<body>
+<div class="app">
+
+  <div class="header">
+    <div class="logo"><span>Linkora</span> eSIM</div>
+    <div class="header-right">
+      <button class="icon-btn" onclick="showPage('orders')" title="Заказы">📋</button>
+    </div>
+  </div>
+
+  <!-- Каталог -->
+  <div id="page-catalog" class="page active" style="padding:0;">
+    <div class="hero">
+      <div class="hero-title">Связь, которая<br><span class="accent">не подводит</span> 🌍</div>
+      <div class="hero-sub">eSIM для путешествий — активация за 1 минуту</div>
+      <div class="hero-stats">
+        <div class="stat"><div class="stat-num">200+</div><div class="stat-label">стран</div></div>
+        <div class="stat"><div class="stat-num">4G</div><div class="stat-label">скорость</div></div>
+        <div class="stat"><div class="stat-num">24/7</div><div class="stat-label">поддержка</div></div>
+      </div>
+    </div>
+
+    <div class="search-wrap">
+      <div class="search-bar">
+        <span class="search-icon">🔍</span>
+        <input type="text" id="searchInput" placeholder="Поиск страны или пакета..." oninput="filterPackages()">
+      </div>
+    </div>
+
+    <div class="tabs" id="tabs">
+      <div class="tab active" onclick="filterTab(this,'all')">Все</div>
+      <div class="tab" onclick="filterTab(this,'global')">🌍 Глобальные</div>
+      <div class="tab" onclick="filterTab(this,'europe')">🇪🇺 Европа</div>
+      <div class="tab" onclick="filterTab(this,'asia')">🌏 Азия</div>
+      <div class="tab" onclick="filterTab(this,'america')">🌎 Америка</div>
+      <div class="tab" onclick="filterTab(this,'middle_east')">🕌 Ближний Восток</div>
+      <div class="tab" onclick="filterTab(this,'africa')">🌍 Африка</div>
+    </div>
+
+    <div class="section-header">
+      <div class="section-title">Тарифы</div>
+      <div class="section-count" id="pkgCount"></div>
+    </div>
+    <div class="packages" id="packages"></div>
+  </div>
+
+  <!-- Заказы -->
+  <div id="page-orders" class="page">
+    <div class="section-header" style="padding:0 0 12px;">
+      <div class="section-title">Мои заказы</div>
+    </div>
+    <div id="orders-list">
+      <div class="empty">
+        <div class="empty-icon">📭</div>
+        <div>Заказов пока нет</div>
+        <div style="font-size:12px;margin-top:6px;">Купи первую eSIM!</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Поддержка -->
+  <div id="page-support" class="page">
+    <div class="support-card">
+      <div class="support-icon">💬</div>
+      <div class="support-title">Служба поддержки</div>
+      <div class="support-sub">Мы на связи 24/7. Ответим на все вопросы по активации и использованию eSIM.</div>
+      <button class="support-btn" onclick="openSupport()">Написать в поддержку</button>
+    </div>
+    <div class="support-card">
+      <div class="support-icon">📱</div>
+      <div class="support-title">Как активировать eSIM</div>
+      <div class="support-sub">
+        <b>iPhone:</b> Настройки → Сотовая связь → Добавить план → Сканируй QR<br><br>
+        <b>Android:</b> Настройки → Сеть → SIM → Добавить eSIM → Сканируй QR
+      </div>
+    </div>
+  </div>
+
+  <!-- Bottom nav -->
+  <nav class="bottom-nav">
+    <button class="nav-item active" id="nav-catalog" onclick="showPage('catalog')">
+      <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>
+      Каталог
+    </button>
+    <button class="nav-item" id="nav-orders" onclick="showPage('orders')">
+      <svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14,2 14,8 20,8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10,9 9,9 8,9"/></svg>
+      Заказы
+    </button>
+    <button class="nav-item" id="nav-support" onclick="showPage('support')">
+      <svg viewBox="0 0 24 24"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+      Поддержка
+    </button>
+  </nav>
+</div>
+
+<!-- Modal -->
+<div class="modal-overlay" id="modal" onclick="handleOverlayClick(event)">
+  <div class="modal">
+    <div class="modal-handle"></div>
+    <div class="modal-close"><button onclick="closeModal()">✕ Закрыть</button></div>
+    <div class="modal-hero">
+      <div class="modal-flag" id="mFlag"></div>
+      <div class="modal-name" id="mName"></div>
+      <div class="modal-region" id="mRegion"></div>
+    </div>
+    <div class="modal-body">
+      <div class="detail-grid">
+        <div class="detail-card"><div class="detail-card-label">Данные</div><div class="detail-card-val" id="mData"></div></div>
+        <div class="detail-card"><div class="detail-card-label">Срок</div><div class="detail-card-val" id="mDays"></div></div>
+      </div>
+      <div class="detail-rows">
+        <div class="detail-row"><span class="detail-row-label">🌐 Покрытие</span><span class="detail-row-val" id="mCoverage"></span></div>
+        <div class="detail-row"><span class="detail-row-label">📶 Сеть</span><span class="detail-row-val">4G / LTE</span></div>
+        <div class="detail-row"><span class="detail-row-label">⚡ Активация</span><span class="detail-row-val">Мгновенная</span></div>
+        <div class="detail-row"><span class="detail-row-label">📲 Устройство</span><span class="detail-row-val">iPhone / Android</span></div>
+      </div>
+      <div class="buy-section">
+        <div class="price-row">
+          <div class="price-big" id="mPrice"></div>
+          <div class="price-sub" id="mPerDay"></div>
+        </div>
+        <button class="buy-btn" onclick="handleBuy()">Купить eSIM</button>
+        <div class="pay-row">
+          <span class="pay-chip">⭐ Stars</span>
+          <span class="pay-chip">💎 USDT</span>
+          <span class="pay-chip">🔶 Crypto</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+// Telegram WebApp init
+const tg = window.Telegram && window.Telegram.WebApp;
+if (tg) {
+  tg.ready();
+  tg.expand();
+  tg.setHeaderColor('#0a0a0a');
+  tg.setBackgroundColor('#0a0a0a');
+}
+
+// API URL — после деплоя на Vercel замени на свой URL
+const API_URL = "https://linkora-esim-api.vercel.app";
+
+let PACKAGES = [];
+let CONTINENTS = [];
+let loadingPackages = false;
+
+async function loadGlobalPackages() {
+  if (loadingPackages) return;
+  loadingPackages = true;
+  showLoading();
+  try {
+    const res = await fetch(`${API_URL}/api/packages?type=global`);
+    const data = await res.json();
+    if (data.ok) {
+      PACKAGES = data.data.map(p => ({ ...p, continent: "global", region: p.country }));
+    }
+  } catch(e) {
+    console.error("Ошибка загрузки пакетов:", e);
+  }
+  loadingPackages = false;
+  hideLoading();
+  loadGlobalPackages();
+loadContinents();
+}
+
+async function loadContinents() {
+  try {
+    const res = await fetch(`${API_URL}/api/packages?type=continents`);
+    const data = await res.json();
+    if (data.ok) {
+      CONTINENTS = data.data;
+      renderContinentTabs();
+    }
+  } catch(e) {
+    console.error("Ошибка загрузки континентов:", e);
+  }
+}
+
+async function loadCountryPackages(countryId, countryName, countryCode) {
+  showLoading();
+  try {
+    const res = await fetch(`${API_URL}/api/packages?type=country&id=${countryId}&name=${encodeURIComponent(countryName)}&code=${countryCode}`);
+    const data = await res.json();
+    if (data.ok) {
+      return data.data.map(p => ({ ...p, region: countryName }));
+    }
+  } catch(e) {
+    console.error("Ошибка загрузки пакетов страны:", e);
+  } finally {
+    hideLoading();
+  }
+  return [];
+}
+
+function showLoading() {
+  document.getElementById("packages").innerHTML = '<div class="empty"><div style="font-size:32px;margin-bottom:10px;">⏳</div><div>Загружаю пакеты...</div></div>';
+}
+function hideLoading() {}
+
+function renderContinentTabs() {
+  const CONT_FLAGS = { "Asia":"🌏","Europe":"🇪🇺","North America":"🌎","South America":"🌎","Africa":"🌍","Oceania":"🌏","Middle East":"🕌" };
+  const tabs = document.getElementById("tabs");
+  const extra = CONTINENTS.map(c =>
+    `<div class="tab" onclick="filterContinent(this,'${c.id}')">${CONT_FLAGS[c.name]||'🌐'} ${c.name}</div>`
+  ).join('');
+  tabs.innerHTML = `
+    <div class="tab active" onclick="filterTab(this,'all')">Все</div>
+    <div class="tab" onclick="filterTab(this,'global')">🌍 Глобальные</div>
+    ${extra}
+  `;
+}
+
+async function filterContinent(el, continentId) {
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  el.classList.add('active');
+
+  // Показываем список стран
+  const res = await fetch(`${API_URL}/api/packages?type=countries&id=${continentId}`);
+  const data = await res.json();
+  const countries = data.data || [];
+
+  document.getElementById("packages").innerHTML = countries.map(c => {
+    const code = (c.image_url||"").split("/").pop().replace(".png","").toUpperCase();
+    const flag = code.length===2 ? [...code].map(ch=>String.fromCodePoint(0x1F1E6+ch.charCodeAt(0)-65)).join("") : "🌐";
+    return `<div class="pkg-card" onclick="selectCountry(${c.id},'${c.name.replace(/'/g,"\'")}','${code}')">
+      <div class="pkg-left">
+        <div class="pkg-flag">${flag}</div>
+        <div><div class="pkg-name">${c.name}</div><div class="pkg-meta">Нажми для просмотра тарифов</div></div>
+      </div>
+      <div class="pkg-right" style="color:#4ade80;font-size:20px;">›</div>
+    </div>`;
+  }).join('') || '<div class="empty"><div>Нет стран</div></div>';
+}
+
+async function selectCountry(id, name, code) {
+  const pkgs = await loadCountryPackages(id, name, code);
+  PACKAGES = pkgs;
+  activeContinent = "country";
+  renderPackages();
+}
+
+let activeContinent = "all";
+let searchQuery = "";
+let selectedPkg = null;
+let currentPage = "catalog";
+
+function renderPackages() {
+  const filtered = PACKAGES.filter(p => {
+    const matchC = activeContinent === "all" || p.continent === activeContinent;
+    const q = searchQuery.toLowerCase();
+    const matchS = !q || p.name.toLowerCase().includes(q) || p.region.toLowerCase().includes(q);
+    return matchC && matchS;
+  });
+
+  document.getElementById("pkgCount").textContent = filtered.length + " тарифов";
+
+  if (!filtered.length) {
+    document.getElementById("packages").innerHTML = '<div class="empty"><div class="empty-icon">🔍</div><div>Ничего не найдено</div></div>';
+    return;
+  }
+
+  document.getElementById("packages").innerHTML = filtered.map(p => `
+    <div class="pkg-card ${p.featured ? 'featured' : ''}" onclick="openModal(${p.id})">
+      <div class="pkg-left">
+        <div class="pkg-flag">${p.flag}</div>
+        <div>
+          ${p.featured ? '<div class="featured-badge">Популярный</div>' : ''}
+          <div class="pkg-name">${p.name}</div>
+          <div class="pkg-meta">${p.gb} GB<span class="pkg-dot">·</span>${p.days} дней<span class="pkg-dot">·</span>${p.region}</div>
+        </div>
+      </div>
+      <div class="pkg-right">
+        <div class="pkg-price">$${p.price.toFixed(2)}</div>
+        <div class="pkg-per-day">$${(p.price/p.days).toFixed(2)}/день</div>
+      </div>
+    </div>
+  `).join('');
+}
+
+async function filterTab(el, val) {
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  el.classList.add('active');
+  activeContinent = val;
+
+  if (val === 'global') {
+    await loadGlobalPackages();
+  } else if (val === 'all') {
+    await loadGlobalPackages();
+  } else {
+    renderPackages();
+  }
+}
+
+function filterPackages() {
+  searchQuery = document.getElementById("searchInput").value;
+  renderPackages();
+}
+
+function openModal(id) {
+  selectedPkg = PACKAGES.find(p => p.id === id);
+  if (!selectedPkg) return;
+  document.getElementById("mFlag").textContent = selectedPkg.flag;
+  document.getElementById("mName").textContent = selectedPkg.name;
+  document.getElementById("mRegion").textContent = selectedPkg.region;
+  document.getElementById("mData").textContent = selectedPkg.gb + " GB";
+  document.getElementById("mDays").textContent = selectedPkg.days + " дней";
+  document.getElementById("mCoverage").textContent = selectedPkg.region;
+  document.getElementById("mPrice").textContent = "$" + selectedPkg.price.toFixed(2);
+  document.getElementById("mPerDay").textContent = "$" + (selectedPkg.price / selectedPkg.days).toFixed(2) + " в день";
+  document.getElementById("modal").classList.add("open");
+  if (tg) tg.BackButton.show();
+}
+
+function closeModal() {
+  document.getElementById("modal").classList.remove("open");
+  if (tg) tg.BackButton.hide();
+}
+
+function handleOverlayClick(e) {
+  if (e.target === document.getElementById("modal")) closeModal();
+}
+
+function handleBuy() {
+  if (!selectedPkg) return;
+  closeModal();
+  if (tg) {
+    tg.sendData(JSON.stringify({
+      action: "buy",
+      package_id: selectedPkg.id,
+      name: selectedPkg.name,
+      price: selectedPkg.price
+    }));
+  }
+}
+
+function showPage(name) {
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+  document.getElementById('page-' + name).classList.add('active');
+  document.getElementById('nav-' + name).classList.add('active');
+  currentPage = name;
+}
+
+function openSupport() {
+  if (tg) tg.openTelegramLink('https://t.me/your_support');
+}
+
+if (tg) {
+  tg.BackButton.onClick(function() {
+    if (document.getElementById("modal").classList.contains("open")) {
+      closeModal();
+    }
+  });
+}
+
+renderPackages();
+</script>
+</body>
+</html>
