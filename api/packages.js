@@ -1,5 +1,4 @@
-// api/packages.js — возвращает пакеты eSIM Cards
-// Vercel serverless function
+// api/packages.js — Vercel serverless function
 
 const ESIMCARDS_EMAIL = process.env.ESIMCARDS_EMAIL;
 const ESIMCARDS_PASSWORD = process.env.ESIMCARDS_PASSWORD;
@@ -11,18 +10,15 @@ let tokenExpiry = 0;
 
 async function getToken() {
   if (cachedToken && Date.now() < tokenExpiry) return cachedToken;
-
   const res = await fetch(`${BASE_URL}/login`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ email: ESIMCARDS_EMAIL, password: ESIMCARDS_PASSWORD }),
   });
-
   const data = await res.json();
   if (!data.status) throw new Error("Auth failed: " + data.message);
-
   cachedToken = data.access_token;
-  tokenExpiry = Date.now() + 50 * 60 * 1000; // 50 минут
+  tokenExpiry = Date.now() + 50 * 60 * 1000;
   return cachedToken;
 }
 
@@ -35,8 +31,7 @@ function flagFromCode(code) {
   return [...code.toUpperCase()].map(c => String.fromCodePoint(0x1F1E6 + c.charCodeAt(0) - 65)).join("");
 }
 
-export default async function handler(req, res) {
-  // CORS — разрешаем запросы из Mini App
+module.exports = async function handler(req, res) {
   res.setHeader("Access-Control-Allow-Origin", "*");
   res.setHeader("Access-Control-Allow-Methods", "GET, OPTIONS");
   res.setHeader("Access-Control-Allow-Headers", "Content-Type");
@@ -51,24 +46,21 @@ export default async function handler(req, res) {
       Accept: "application/json",
     };
 
-    const type = req.query.type || "global"; // global | continents | country
-    const id = req.query.id; // continent_id или country_id
+    const type = req.query.type || "global";
+    const id = req.query.id;
 
-    // ── Список континентов ──────────────────────────────
     if (type === "continents") {
       const r = await fetch(`${BASE_URL}/packages/continent`, { headers });
       const data = await r.json();
       return res.json({ ok: true, data: data.data || [] });
     }
 
-    // ── Страны континента ───────────────────────────────
-    if (type === "countries" && id) {
+    if (type === "countries") {
       const r = await fetch(`${BASE_URL}/packages/country`, { headers });
       const data = await r.json();
       return res.json({ ok: true, data: data.data || [] });
     }
 
-    // ── Пакеты страны ───────────────────────────────────
     if (type === "country" && id) {
       const r = await fetch(
         `${BASE_URL}/packages/country/${id}?package_type=DATA-ONLY`,
@@ -77,8 +69,7 @@ export default async function handler(req, res) {
       const data = await r.json();
       const name = req.query.name || "Страна";
       const code = req.query.code || "XX";
-
-      const packages = (data.data || []).map((pkg) => ({
+      const packages = (data.data || []).map(pkg => ({
         id: pkg.id,
         name: pkg.name,
         country: name,
@@ -87,18 +78,15 @@ export default async function handler(req, res) {
         gb: parseFloat(pkg.data_quantity) || 0,
         days: parseInt(pkg.package_validity) || 0,
         price: applyMarkup(parseFloat(pkg.price) || 0),
-        wholesale: parseFloat(pkg.price) || 0,
         unlimited: pkg.unlimited || false,
       }));
-
       return res.json({ ok: true, data: packages });
     }
 
-    // ── Глобальные пакеты (по умолчанию) ────────────────
+    // Глобальные пакеты
     const r = await fetch(`${BASE_URL}/packages/global/DATA-ONLY`, { headers });
     const data = await r.json();
-
-    const packages = (data.data || []).map((pkg) => ({
+    const packages = (data.data || []).map(pkg => ({
       id: pkg.id,
       name: pkg.name,
       country: "Весь мир",
@@ -107,13 +95,12 @@ export default async function handler(req, res) {
       gb: parseFloat(pkg.data_quantity) || 0,
       days: parseInt(pkg.package_validity) || 0,
       price: applyMarkup(parseFloat(pkg.price) || 0),
-      wholesale: parseFloat(pkg.price) || 0,
       unlimited: pkg.unlimited || false,
     }));
-
     return res.json({ ok: true, data: packages });
+
   } catch (err) {
     console.error("API error:", err.message);
     return res.status(500).json({ ok: false, error: err.message });
   }
-}
+};
