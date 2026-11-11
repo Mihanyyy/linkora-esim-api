@@ -27,6 +27,22 @@ async function redis(commands) {
   return r.json(); // массив [{result: ...}, ...]
 }
 
+// Одна Redis-команда (без транзакции)
+async function redisOne(command) {
+  const r = await fetch(REDIS_URL, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${REDIS_TOKEN}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(command),
+  });
+  if (!r.ok) throw new Error(`Redis ${r.status}: ${await r.text()}`);
+  const data = await r.json();
+  if (data.error) throw new Error(`Redis: ${data.error}`);
+  return data.result;
+}
+
 module.exports = async function handler(req, res) {
   res.setHeader("Access-Control-Allow-Origin", "*");
   res.setHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
@@ -65,6 +81,12 @@ module.exports = async function handler(req, res) {
   // ── Бот забирает все ожидающие заказы ────────────────
   if (req.method === "GET") {
     try {
+      // Сначала дешёвая проверка: пустая очередь = 1 команда Redis вместо 2.
+      // Бот спрашивает очередь каждые несколько секунд, а бесплатный Upstash
+      // даёт 500 тысяч команд в месяц — так лимит не кончится.
+      const count = await redisOne(["HLEN", KEY]);
+      if (!Number(count)) return res.json({ ok: true, orders: [] });
+
       // Атомарно: читаем все заказы и тут же удаляем ключ.
       // Даже если бот опросит другую копию функции — повторно эти заказы никто не отдаст.
       const results = await redis([
