@@ -5,10 +5,43 @@
 const crypto = require("crypto");
 
 // Vercel сам добавит эти переменные при подключении Upstash Redis в Storage
-const REDIS_URL =
-  process.env.UPSTASH_REDIS_REST_URL || process.env.KV_REST_API_URL;
-const REDIS_TOKEN =
-  process.env.UPSTASH_REDIS_REST_TOKEN || process.env.KV_REST_API_TOKEN;
+const URL_VAR = process.env.UPSTASH_REDIS_REST_URL
+  ? "UPSTASH_REDIS_REST_URL"
+  : "KV_REST_API_URL";
+const TOKEN_VAR = process.env.UPSTASH_REDIS_REST_TOKEN
+  ? "UPSTASH_REDIS_REST_TOKEN"
+  : "KV_REST_API_TOKEN";
+const REDIS_URL = (process.env[URL_VAR] || "").trim().replace(/\/+$/, "");
+const REDIS_TOKEN = (process.env[TOKEN_VAR] || "").trim();
+
+// Понятная подсказка, если переменные заполнены неверно. Сами значения не показываем.
+function configProblem() {
+  if (!REDIS_URL || !REDIS_TOKEN) {
+    return "Redis не настроен: в Vercel нет переменных UPSTASH_REDIS_REST_URL и UPSTASH_REDIS_REST_TOKEN";
+  }
+  if (/["'\s]/.test(REDIS_URL)) {
+    return `В переменной ${URL_VAR} есть кавычки или пробелы: вставь только адрес https://...upstash.io`;
+  }
+  if (!/^https:\/\//i.test(REDIS_URL)) {
+    return `Переменная ${URL_VAR} должна начинаться с https:// (сейчас начинается с «${REDIS_URL.slice(0, 8)}»). Нужен адрес из блока REST API в Upstash, а не redis:// или rediss://`;
+  }
+  if (/["'\s]/.test(REDIS_TOKEN)) {
+    return `В переменной ${TOKEN_VAR} есть кавычки или пробелы: вставь только сам токен`;
+  }
+  return null;
+}
+
+// Что именно сломалось при обращении к Redis (без секретов)
+function explain(e) {
+  const code = (e && e.cause && (e.cause.code || e.cause.message)) || "";
+  if (code === "ENOTFOUND" || code === "EAI_AGAIN") {
+    return `Адрес базы из переменной ${URL_VAR} не существует (${code}): база удалена или адрес скопирован с ошибкой. Вставь адрес новой базы и сделай Redeploy`;
+  }
+  if (/Redis 401|Unauthorized|WRONGPASS/i.test(e.message)) {
+    return `Upstash не принял токен из переменной ${TOKEN_VAR}: вставь обычный токен (не Read-only) от новой базы и сделай Redeploy`;
+  }
+  return `${e.message}${code ? " (" + code + ")" : ""} [адрес из ${URL_VAR}]`;
+}
 
 const KEY = "pending_orders";
 const FRESH_MS = 5 * 60 * 1000; // отдаём боту только заказы свежее 5 минут
@@ -49,12 +82,8 @@ module.exports = async function handler(req, res) {
   res.setHeader("Access-Control-Allow-Headers", "Content-Type");
   if (req.method === "OPTIONS") return res.status(200).end();
 
-  if (!REDIS_URL || !REDIS_TOKEN) {
-    return res.status(500).json({
-      ok: false,
-      error: "Redis не настроен: подключи Upstash Redis во вкладке Storage проекта на Vercel",
-    });
-  }
+  const problem = configProblem();
+  if (problem) return res.status(500).json({ ok: false, error: problem });
 
   // ── Mini App сохраняет выбор ──────────────────────────
   if (req.method === "POST") {
@@ -74,7 +103,7 @@ module.exports = async function handler(req, res) {
       return res.json({ ok: true });
     } catch (e) {
       console.error("pending POST error:", e.message);
-      return res.status(500).json({ ok: false, error: e.message });
+      return res.status(500).json({ ok: false, error: explain(e) });
     }
   }
 
@@ -118,7 +147,7 @@ module.exports = async function handler(req, res) {
       return res.json({ ok: true, orders });
     } catch (e) {
       console.error("pending GET error:", e.message);
-      return res.status(500).json({ ok: false, error: e.message });
+      return res.status(500).json({ ok: false, error: explain(e) });
     }
   }
 
