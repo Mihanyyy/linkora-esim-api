@@ -46,6 +46,11 @@ function explain(e) {
 const KEY = "pending_orders";
 const FRESH_MS = 5 * 60 * 1000; // отдаём боту только заказы свежее 5 минут
 
+// Бот раз в минуту добавляет к запросу ?hb=1 — так API знает, что он на связи.
+// Если сигнала не было дольше ALIVE_MS, заказы не принимаем: счёт клиенту всё равно не придёт.
+const ALIVE_KEY = "bot_alive";
+const ALIVE_MS = 150 * 1000;
+
 // Выполняет несколько Redis-команд атомарно (транзакция MULTI/EXEC)
 async function redis(commands) {
   const r = await fetch(`${REDIS_URL}/multi-exec`, {
@@ -88,8 +93,16 @@ module.exports = async function handler(req, res) {
   // ── Mini App сохраняет выбор ──────────────────────────
   if (req.method === "POST") {
     try {
-      const { telegram_id, pkg } = req.body;
+      const { telegram_id, pkg } = req.body || {};
       if (!telegram_id || !pkg) return res.status(400).json({ ok: false });
+
+      // Бот выключен (компьютер спит, нет интернета): честно говорим об этом,
+      // а не принимаем заказ, по которому никто не выставит счёт.
+      // Если сигналов не было никогда, бот старой версии — работаем как раньше.
+      const seen = await redisOne(["GET", ALIVE_KEY]);
+      if (seen !== null && Date.now() - Number(seen) > ALIVE_MS) {
+        return res.status(503).json({ ok: false, error: "bot_offline" });
+      }
 
       const order = JSON.stringify({
         pkg,
@@ -113,7 +126,16 @@ module.exports = async function handler(req, res) {
       // Сначала дешёвая проверка: пустая очередь = 1 команда Redis вместо 2.
       // Бот спрашивает очередь каждые несколько секунд, а бесплатный Upstash
       // даёт 500 тысяч команд в месяц — так лимит не кончится.
-      const count = await redisOne(["HLEN", KEY]);
+      let count;
+      if (req.query && req.query.hb) {
+        // тот же запрос заодно отмечает, что бот на связи
+        [count] = await Promise.all([
+          redisOne(["HLEN", KEY]),
+          redisOne(["SET", ALIVE_KEY, String(Date.now())]),
+        ]);
+      } else {
+        count = await redisOne(["HLEN", KEY]);
+      }
       if (!Number(count)) return res.json({ ok: true, orders: [] });
 
       // Атомарно: читаем все заказы и тут же удаляем ключ.
