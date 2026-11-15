@@ -8,6 +8,8 @@ const REDIS_TOKEN = (process.env.UPSTASH_REDIS_REST_URL
 
 const ALIVE_KEY = "bot_alive";
 const ALIVE_MS = 150 * 1000; // как в pending.js
+// включена ли защита очереди (в Vercel задан BOT_TOKEN, см. pending.js) — чтобы это было видно в ответе
+const PROTECTED = !!(process.env.BOT_TOKEN || "").trim();
 
 module.exports = async function handler(req, res) {
   res.setHeader("Access-Control-Allow-Origin", "*");
@@ -28,10 +30,10 @@ module.exports = async function handler(req, res) {
     const online = seen === null || seen === undefined || Date.now() - Number(seen) <= ALIVE_MS;
     // Ответ минуту хранится на серверах Vercel, чтобы не тратить лимит Redis на каждое открытие каталога
     res.setHeader("Cache-Control", "public, s-maxage=60");
-    return res.json({ ok: true, online });
+    return res.json({ ok: true, online, protected: PROTECTED });
   } catch (e) {
     console.error("status error:", e.message);
     // статус узнать не удалось: не мешаем покупке, оплата сама сообщит об ошибке
-    return res.json({ ok: true, online: true, unknown: true });
+    return res.json({ ok: true, online: true, unknown: true, protected: PROTECTED });
   }
 };

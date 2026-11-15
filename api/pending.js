@@ -14,6 +14,51 @@ const TOKEN_VAR = process.env.UPSTASH_REDIS_REST_TOKEN
 const REDIS_URL = (process.env[URL_VAR] || "").trim().replace(/\/+$/, "");
 const REDIS_TOKEN = (process.env[TOKEN_VAR] || "").trim();
 
+// ── Защита очереди ──────────────────────────────────────────────────────
+// Включается, когда в настройках Vercel есть переменная BOT_TOKEN (токен бота от @BotFather).
+// Пока её нет, всё работает как раньше, без проверок.
+//   • Заказ (POST) принимается только с подписью Telegram: мини-приложение присылает строку
+//     initData, её подлинность проверяется токеном бота. Номер клиента берётся из этой строки,
+//     а не из того, что написано в запросе, поэтому оформить заказ на чужой аккаунт нельзя.
+//   • Очередь (GET) отдаётся только боту: он присылает ключ, вычисленный из того же токена.
+//     Сам токен по сети не передаётся.
+const BOT_TOKEN = (process.env.BOT_TOKEN || "").trim();
+const INIT_MAX_AGE_SEC = 24 * 60 * 60;   // каталог, открытый больше суток назад, просим открыть заново
+
+function sameText(a, b) {
+  const x = Buffer.from(String(a || "")), y = Buffer.from(String(b || ""));
+  return x.length === y.length && crypto.timingSafeEqual(x, y);
+}
+
+// Ключ, по которому бот получает очередь
+function queueKey() {
+  return crypto.createHmac("sha256", BOT_TOKEN).update("linkora-queue").digest("hex");
+}
+
+// Проверка строки initData из мини-приложения (алгоритм из документации Telegram).
+// Возвращает { ok: true, userId } или { ok: false, error: "auth" | "stale" }.
+function checkInitData(raw) {
+  if (typeof raw !== "string" || !raw || raw.length > 8192) return { ok: false, error: "auth" };
+  const fields = new URLSearchParams(raw);
+  const hash = fields.get("hash");
+  if (!hash) return { ok: false, error: "auth" };
+  fields.delete("hash");
+  const lines = [...fields.entries()]
+    .sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))
+    .map(([k, v]) => `${k}=${v}`);
+  const secret = crypto.createHmac("sha256", "WebAppData").update(BOT_TOKEN).digest();
+  const expected = crypto.createHmac("sha256", secret).update(lines.join("\n")).digest("hex");
+  if (!sameText(hash.toLowerCase(), expected)) return { ok: false, error: "auth" };
+
+  const age = Math.floor(Date.now() / 1000) - Number(fields.get("auth_date"));
+  if (!Number.isFinite(age) || age > INIT_MAX_AGE_SEC || age < -300) return { ok: false, error: "stale" };
+
+  let userId = 0;
+  try { userId = Number(JSON.parse(fields.get("user") || "{}").id); } catch (_) {}
+  if (!Number.isSafeInteger(userId) || userId <= 0) return { ok: false, error: "auth" };
+  return { ok: true, userId };
+}
+
 // Понятная подсказка, если переменные заполнены неверно. Сами значения не показываем.
 function configProblem() {
   if (!REDIS_URL || !REDIS_TOKEN) {
@@ -27,6 +72,9 @@ function configProblem() {
   }
   if (/["'\s]/.test(REDIS_TOKEN)) {
     return `В переменной ${TOKEN_VAR} есть кавычки или пробелы: вставь только сам токен`;
+  }
+  if (BOT_TOKEN && !/^\d+:[\w-]{20,}$/.test(BOT_TOKEN)) {
+    return "Переменная BOT_TOKEN в Vercel не похожа на токен бота: вставь токен из @BotFather целиком, без кавычек и пробелов (вид 1234567890:AAH...), и сделай Redeploy";
   }
   return null;
 }
@@ -93,8 +141,17 @@ module.exports = async function handler(req, res) {
   // ── Mini App сохраняет выбор ──────────────────────────
   if (req.method === "POST") {
     try {
-      const { telegram_id, pkg } = req.body || {};
-      if (!telegram_id || !pkg) return res.status(400).json({ ok: false });
+      const { pkg, init_data } = req.body || {};
+      let telegram_id = (req.body || {}).telegram_id;
+      if (BOT_TOKEN) {
+        // защита включена: клиент — тот, чью подпись подтвердил Telegram
+        const who = checkInitData(init_data);
+        if (!who.ok) return res.status(401).json({ ok: false, error: who.error });
+        telegram_id = who.userId;
+      }
+      if (!telegram_id || !pkg || typeof pkg !== "object" || JSON.stringify(pkg).length > 2000) {
+        return res.status(400).json({ ok: false });
+      }
 
       // Бот выключен (компьютер спит, нет интернета): честно говорим об этом,
       // а не принимаем заказ, по которому никто не выставит счёт.
@@ -122,6 +179,10 @@ module.exports = async function handler(req, res) {
 
   // ── Бот забирает все ожидающие заказы ────────────────
   if (req.method === "GET") {
+    // защита включена: очередь получает только бот, по ключу из токена
+    if (BOT_TOKEN && !sameText(req.headers["x-queue-key"], queueKey())) {
+      return res.status(401).json({ ok: false, error: "forbidden" });
+    }
     try {
       // Сначала дешёвая проверка: пустая очередь = 1 команда Redis вместо 2.
       // Бот спрашивает очередь каждые несколько секунд, а бесплатный Upstash
